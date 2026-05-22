@@ -75,6 +75,12 @@ firebase deploy --only hosting
 
 Hosting serves `festmap/build/web` (SPA rewrite to `index.html`).
 
+**Web (production on Railway):**
+
+Deploy from the **repository root** (parent of `festmap/`). Railway uses the root `Dockerfile` to build Flutter web and serve it.
+
+See **[docs/railway-deploy.md](../docs/railway-deploy.md)** for GitHub deploy steps, custom domains, and Maps API referrer setup.
+
 Until `firebase_options.dart` contains your real `projectId` (not `YOUR_PROJECT_ID`), the app shows an in-app setup checklist instead of the map.
 
 ## Firestore schema

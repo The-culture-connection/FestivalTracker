@@ -8,5 +8,6 @@ Festival observation map: drop pins at your location, answer a short questionnai
 | [Mockup/](Mockup/) | React UI mockup (reference design) |
 | [firebase/](firebase/) | Firestore security rules |
 | [docs/features-dossier.md](docs/features-dossier.md) | Feature behavior reference |
+| [docs/railway-deploy.md](docs/railway-deploy.md) | Deploy FestMap **web** on Railway |
 
 Quick start: see [festmap/README.md](festmap/README.md).

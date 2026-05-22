@@ -1,0 +1,17 @@
+.git
+.gitignore
+**/.dart_tool
+**/build
+**/android
+**/ios
+**/linux
+**/macos
+**/windows
+**/test
+Mockup
+firebase
+docs
+*.md
+!festmap/README.md
+.cursor
+terminals

@@ -9,7 +9,7 @@
 - Google Maps loads via **Maps JavaScript API** script in `web/index.html` (separate from Android/iOS Maps SDK keys).
 - Browser geolocation via `geolocator.getCurrentPosition` (45s timeout; no `getLastKnownPosition` on web). Map stays visible if GPS fails; user can long-press to drop a pin or tap **Retry** on the banner.
 - Reverse geocoding on web: **Photon** → **Nominatim** → **Google Geocoding API** (optional). Forward geocoding (address → pin) uses the same order when the user edits **Location** in the form.
-- Deploy output to **Firebase Hosting** (`firebase/firebase.json` → `festmap/build/web`).
+- Deploy output to **Firebase Hosting** (`firebase/firebase.json` → `festmap/build/web`) or **Railway** (root `Dockerfile` builds `festmap` and serves with SPA fallback — see `docs/railway-deploy.md`).
 
 ---
 

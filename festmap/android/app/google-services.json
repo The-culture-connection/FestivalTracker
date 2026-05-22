@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "72734802181",
+    "project_id": "festival-tracker-221ca",
+    "storage_bucket": "festival-tracker-221ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:72734802181:android:a1be959f9fc755df10b76c",
+        "android_client_info": {
+          "package_name": "com.cultureconnection.festmap.festmap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzw6icHHaScvSSJbpiXufUVcE1iLcgHBk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

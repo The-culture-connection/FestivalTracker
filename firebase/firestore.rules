@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /pins/{pinId} {
+      allow read: if true;
+
+      allow create: if request.resource.data.keys().hasAll([
+          'lat',
+          'lng',
+          'location',
+          'activity',
+          'size',
+          'direction',
+          'attire',
+          'observedAt',
+          'createdAt',
+        ])
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number
+        && request.resource.data.lat >= -90
+        && request.resource.data.lat <= 90
+        && request.resource.data.lng >= -180
+        && request.resource.data.lng <= 180
+        && request.resource.data.location is string
+        && request.resource.data.location.size() > 0
+        && request.resource.data.location.size() <= 200
+        && request.resource.data.activity is string
+        && request.resource.data.activity.size() > 0
+        && request.resource.data.activity.size() <= 200
+        && request.resource.data.size is string
+        && request.resource.data.size.size() > 0
+        && request.resource.data.size.size() <= 200
+        && request.resource.data.direction is string
+        && request.resource.data.direction.size() > 0
+        && request.resource.data.direction.size() <= 200
+        && request.resource.data.attire is string
+        && request.resource.data.attire.size() > 0
+        && request.resource.data.attire.size() <= 200
+        && request.resource.data.observedAt is string
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+  }
+}

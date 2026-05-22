@@ -1,14 +1,29 @@
 # FestMap — Features Dossier
 
+## Web app (Flutter Web)
+
+### How the feature works
+
+- Same Dart codebase as mobile (`festmap/`), compiled with `flutter build web`.
+- Uses existing `firebase_options.dart` **web** config and the same Firestore `pins` collection / security rules.
+- Google Maps loads via **Maps JavaScript API** script in `web/index.html` (separate from Android/iOS Maps SDK keys).
+- Browser geolocation via `geolocator.getCurrentPosition` (45s timeout; no `getLastKnownPosition` on web). Map stays visible if GPS fails; user can long-press to drop a pin or tap **Retry** on the banner.
+- Reverse geocoding on web: **Photon** → **Nominatim** → **Google Geocoding API** (optional). Forward geocoding (address → pin) uses the same order when the user edits **Location** in the form.
+- Deploy output to **Firebase Hosting** (`firebase/firebase.json` → `festmap/build/web`).
+
+---
+
 ## Map & pins
 
 ### How the feature works
 
 - On launch, the app requests location permission, reads GPS, and animates Google Maps to zoom level 16 at the user’s position.
-- A realtime Firestore listener on the `pins` collection loads documents; pins within **15 km** of the user (Haversine distance) are shown as orange markers.
-- Tapping a marker opens a summary card (location, activity, size).
+- A realtime Firestore listener on the `pins` collection loads documents and shows orange markers.
+- **Mobile:** pins within **15 km** of the user (Haversine).
+- **Web:** **all pins** in Firestore (no distance filter) so pins from other regions remain visible when testing from a desktop browser.
+- Tapping a marker opens a scrollable **Observation** detail card with labeled metadata: Location, Activity, Size, Movement/Direction, Attire/Style, Date & Time (observed), Posted (server `createdAt`), and Coordinates.
 - **Drop Pin** (FAB) opens the questionnaire for the **current GPS** coordinates. **Long-press** the map to drop at another point.
-- Location field is **autofilled** via reverse geocoding (`geocoding` package); the user can edit before save.
+- Location field is **autofilled** via reverse geocoding (`geocoding` on mobile; Photon/Nominatim/Google on web). Editing the address **forward-geocodes** after a short pause and moves the orange pending pin; the map camera follows. Save uses the geocoded coordinates (with a final lookup on submit).
 - Saving writes a new document to `pins` with server `createdAt`; updates and deletes are denied by security rules.
 - No authentication UI: anyone can read pins and create new ones (rules validate field shapes and lengths).
 
@@ -25,7 +40,7 @@
 
 ### How the feature works
 
-1. **Location** — prefilled from reverse geocode of pin lat/lng; required text field.
+1. **Location** — prefilled from reverse geocode of pin lat/lng; required text field. Changing the text updates lat/lng via forward geocoding so the saved pin matches the typed address.
 2. **Activity** — free text.
 3. **Size** — free text (crowd size / energy).
 4. **Movement / Direction** — free text.

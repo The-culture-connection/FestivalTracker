@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/festmap_theme.dart';
 
 class FestMapHeader extends StatelessWidget {
-  const FestMapHeader({super.key, required this.pinCount});
+  const FestMapHeader({
+    super.key,
+    required this.pinCount,
+    this.countLabel = 'pins nearby',
+  });
 
   final int pinCount;
+  final String countLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +66,7 @@ class FestMapHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            '$pinCount pins nearby',
+            '$pinCount $countLabel',
             style: theme.textTheme.bodySmall,
           ),
         ],

@@ -4,7 +4,7 @@ Festival observation map: drop pins at your location, answer a short questionnai
 
 | Path | Description |
 |------|-------------|
-| [festmap/](festmap/) | **Flutter** mobile app (Firestore + Google Maps) |
+| [festmap/](festmap/) | **Flutter** app — Android, iOS, and **web** (Firestore + Google Maps) |
 | [Mockup/](Mockup/) | React UI mockup (reference design) |
 | [firebase/](firebase/) | Firestore security rules |
 | [docs/features-dossier.md](docs/features-dossier.md) | Feature behavior reference |

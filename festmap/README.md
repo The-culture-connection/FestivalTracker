@@ -1,6 +1,6 @@
 # FestMap (Flutter)
 
-Mobile app for dropping and viewing festival observation pins on a map. UI follows the React mockup in `../Mockup/` (dark theme, orange accent, slide-up questionnaire).
+Cross-platform app (Android, iOS, **web**) for dropping and viewing festival observation pins on a map. One **Firestore** backend for all platforms. UI follows the React mockup in `../Mockup/` (dark theme, orange accent, slide-up questionnaire).
 
 ## Features
 
@@ -35,18 +35,45 @@ firebase deploy --only firestore:rules
 
 ### 2. Google Maps
 
-1. In Google Cloud Console, enable **Maps SDK for Android** and **Maps SDK for iOS** (same project as Firebase is fine).
-2. Create an API key and restrict it to your app IDs.
-3. Replace placeholders:
-   - Android: `android/app/src/main/AndroidManifest.xml` → `com.google.android.geo.API_KEY`
-   - iOS: `ios/Runner/Info.plist` → `GMSApiKey`
+Enable in Google Cloud project `festival-tracker-221ca`:
+
+| Platform | API to enable | Where to put the key |
+|----------|---------------|----------------------|
+| Android | Maps SDK for Android | `android/app/src/main/AndroidManifest.xml` |
+| iOS | Maps SDK for iOS | `ios/Runner/Info.plist` → `GMSApiKey` |
+| **Web** | **Maps JavaScript API** | `web/index.html` → `<script src="...maps/api/js?key=...">` |
+| **Web** (optional) | **Geocoding API** | Same web API key — street addresses in the Location field |
+
+Use your dedicated Maps keys per platform (or the Firebase web key for `index.html` if Maps JavaScript API is enabled on it).
+
+On web, location labels use **Google Geocoding API** when enabled, otherwise **OpenStreetMap Nominatim** (coordinates only if both fail).
 
 ### 3. Run
+
+**Mobile:**
 
 ```bash
 flutter pub get
 flutter run
 ```
+
+**Web (local):**
+
+```bash
+flutter run -d chrome
+```
+
+Allow **location** when the browser prompts you.
+
+**Web (production build + Firebase Hosting):**
+
+```bash
+flutter build web --release
+cd ../firebase
+firebase deploy --only hosting
+```
+
+Hosting serves `festmap/build/web` (SPA rewrite to `index.html`).
 
 Until `firebase_options.dart` contains your real `projectId` (not `YOUR_PROJECT_ID`), the app shows an in-app setup checklist instead of the map.
 

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/fest_pin.dart';
+import '../services/location_service.dart';
 import '../theme/festmap_theme.dart';
 
 class ObservationFormSheet extends StatefulWidget {
@@ -10,15 +13,19 @@ class ObservationFormSheet extends StatefulWidget {
     required this.initialLocation,
     required this.lat,
     required this.lng,
+    required this.locationService,
     required this.onSubmit,
     required this.onCancel,
+    this.onPinMoved,
   });
 
   final String initialLocation;
   final double lat;
   final double lng;
+  final LocationService locationService;
   final Future<void> Function(PinDraft draft) onSubmit;
   final VoidCallback onCancel;
+  final void Function(double lat, double lng)? onPinMoved;
 
   @override
   State<ObservationFormSheet> createState() => _ObservationFormSheetState();
@@ -32,12 +39,21 @@ class _ObservationFormSheetState extends State<ObservationFormSheet> {
   late final TextEditingController _directionController;
   late final TextEditingController _attireController;
   late DateTime _observedAt;
+  late double _lat;
+  late double _lng;
   bool _saving = false;
+  bool _geocodingLocation = false;
+  bool _locationEditedByUser = false;
+  String? _geocodeHint;
+  Timer? _geocodeDebounce;
 
   @override
   void initState() {
     super.initState();
+    _lat = widget.lat;
+    _lng = widget.lng;
     _locationController = TextEditingController(text: widget.initialLocation);
+    _locationController.addListener(_onLocationTextChanged);
     _activityController = TextEditingController();
     _sizeController = TextEditingController();
     _directionController = TextEditingController();
@@ -45,17 +61,75 @@ class _ObservationFormSheetState extends State<ObservationFormSheet> {
     _observedAt = DateTime.now();
   }
 
+  void _onLocationTextChanged() {
+    if (!_locationEditedByUser) {
+      _locationEditedByUser = true;
+    }
+    _scheduleAddressGeocode();
+  }
+
+  void _scheduleAddressGeocode() {
+    _geocodeDebounce?.cancel();
+    _geocodeDebounce = Timer(const Duration(milliseconds: 900), () {
+      unawaited(_resolveAddressToPin());
+    });
+  }
+
+  Future<void> _resolveAddressToPin() async {
+    if (!_locationEditedByUser) return;
+
+    final query = _locationController.text.trim();
+    if (query.length < 5) {
+      if (mounted) {
+        setState(() => _geocodeHint = null);
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _geocodingLocation = true;
+      _geocodeHint = null;
+    });
+
+    final coords = await widget.locationService.forwardGeocode(query);
+    if (!mounted) return;
+
+    if (coords == null) {
+      setState(() {
+        _geocodingLocation = false;
+        _geocodeHint = 'Could not find that address on the map';
+      });
+      return;
+    }
+
+    setState(() {
+      _geocodingLocation = false;
+      _lat = coords.lat;
+      _lng = coords.lng;
+      _geocodeHint = 'Pin moved to this address';
+    });
+    widget.onPinMoved?.call(coords.lat, coords.lng);
+  }
+
   @override
   void didUpdateWidget(covariant ObservationFormSheet oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialLocation != widget.initialLocation &&
         _locationController.text == oldWidget.initialLocation) {
+      _locationEditedByUser = false;
       _locationController.text = widget.initialLocation;
+    }
+    if (oldWidget.lat != widget.lat || oldWidget.lng != widget.lng) {
+      _lat = widget.lat;
+      _lng = widget.lng;
     }
   }
 
   @override
   void dispose() {
+    _geocodeDebounce?.cancel();
+    _locationController.removeListener(_onLocationTextChanged);
     _locationController.dispose();
     _activityController.dispose();
     _sizeController.dispose();
@@ -110,11 +184,17 @@ class _ObservationFormSheetState extends State<ObservationFormSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
+      _geocodeDebounce?.cancel();
+      final locationText = _locationController.text.trim();
+      final coords = await widget.locationService.forwardGeocode(locationText);
+      final lat = coords?.lat ?? _lat;
+      final lng = coords?.lng ?? _lng;
+
       await widget.onSubmit(
         PinDraft(
-          lat: widget.lat,
-          lng: widget.lng,
-          location: _locationController.text.trim(),
+          lat: lat,
+          lng: lng,
+          location: locationText,
           activity: _activityController.text.trim(),
           size: _sizeController.text.trim(),
           direction: _directionController.text.trim(),
@@ -189,14 +269,27 @@ class _ObservationFormSheetState extends State<ObservationFormSheet> {
                         child: TextFormField(
                           controller: _locationController,
                           style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Venue or area name',
+                            suffixIcon: _geocodingLocation
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: FestMapColors.primary,
+                                      ),
+                                    ),
+                                  )
+                                : null,
                           ),
                           validator: (v) =>
                               v == null || v.trim().isEmpty ? 'Required' : null,
                         ),
-                        helper:
-                            'Autofilled from GPS — edit if the venue name looks off',
+                        helper: _geocodeHint ??
+                            'Editing the address moves the pin on the map',
                       ),
                       const SizedBox(height: 14),
                       _field(

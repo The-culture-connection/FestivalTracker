@@ -5,7 +5,8 @@ import 'app.dart';
 import 'firebase_options.dart';
 
 bool _firebaseConfigured() {
-  return DefaultFirebaseOptions.android.projectId != 'YOUR_PROJECT_ID';
+  final projectId = DefaultFirebaseOptions.web.projectId;
+  return projectId.isNotEmpty && projectId != 'YOUR_PROJECT_ID';
 }
 
 Future<void> main() async {

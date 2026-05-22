@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -32,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _pendingLocationLabel;
   List<FestPin> _pins = [];
   StreamSubscription<List<FestPin>>? _pinsSub;
-  bool _locating = true;
+  bool _locating = !kIsWeb;
   String? _locationBanner;
   String? _error;
   bool _showForm = false;
@@ -40,6 +41,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      _locationBanner = 'Allow location when your browser prompts you…';
+      _listenForPins(_mapCenter);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_initLocation());
     });
@@ -56,8 +61,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       _locating = true;
-      _error = null;
-      _locationBanner = 'Finding your location…';
+      _error = kIsWeb ? null : _error;
+      _locationBanner = kIsWeb
+          ? 'Allow location when your browser prompts you…'
+          : 'Finding your location…';
     });
 
     try {
@@ -72,19 +79,23 @@ class _HomeScreenState extends State<HomeScreen> {
         _locationBanner = null;
       });
 
-      _listenForNearbyPins(latLng);
+      _listenForPins(latLng);
       await _animateTo(latLng);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _locating = false;
-        _locationBanner = null;
-        _error = e.toString();
-        _userPosition ??= _mapCenter;
+        if (kIsWeb) {
+          _error = null;
+          _locationBanner = e.toString();
+          _userPosition ??= _mapCenter;
+        } else {
+          _locationBanner = null;
+          _error = e.toString();
+          _userPosition ??= _mapCenter;
+        }
       });
-      if (_userPosition != null) {
-        _listenForNearbyPins(_userPosition!);
-      }
+      _listenForPins(_userPosition ?? _mapCenter);
     }
   }
 
@@ -98,14 +109,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _listenForNearbyPins(LatLng center) {
+  void _listenForPins(LatLng center) {
     _pinsSub?.cancel();
-    _pinsSub = _pinRepository
-        .watchNearbyPins(lat: center.latitude, lng: center.longitude)
-        .listen((pins) {
-      if (!mounted) return;
-      setState(() => _pins = pins);
-    });
+    final stream = kIsWeb
+        ? _pinRepository.watchAllPins()
+        : _pinRepository.watchNearbyPins(
+            lat: center.latitude,
+            lng: center.longitude,
+          );
+
+    _pinsSub = stream.listen(
+      (pins) {
+        if (!mounted) return;
+        setState(() => _pins = pins);
+      },
+      onError: (Object e) {
+        if (!mounted) return;
+        _showSnack('Could not load pins: $e');
+      },
+    );
   }
 
   Future<void> _recenter() async {
@@ -117,22 +139,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openDropPinForm({LatLng? at}) async {
-    final target = at ?? _userPosition;
+    LatLng? target = at ?? _userPosition;
+    if (target == null && kIsWeb) {
+      final center = await _mapController?.getVisibleRegion();
+      if (center != null) {
+        target = LatLng(
+          (center.northeast.latitude + center.southwest.latitude) / 2,
+          (center.northeast.longitude + center.southwest.longitude) / 2,
+        );
+      }
+      target ??= _mapCenter;
+    }
     if (target == null) {
       _showSnack('Waiting for your location…');
       return;
     }
 
+    final pinAt = target;
+
     setState(() {
-      _pendingPin = target;
+      _pendingPin = pinAt;
       _pendingLocationLabel = null;
       _showForm = true;
     });
 
     try {
       final label = await _locationService.reverseGeocode(
-        target.latitude,
-        target.longitude,
+        pinAt.latitude,
+        pinAt.longitude,
       );
       if (!mounted || !_showForm) return;
       setState(() => _pendingLocationLabel = label);
@@ -140,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted || !_showForm) return;
       setState(
         () => _pendingLocationLabel =
-            '${target.latitude.toStringAsFixed(5)}, ${target.longitude.toStringAsFixed(5)}',
+            '${pinAt.latitude.toStringAsFixed(5)}, ${pinAt.longitude.toStringAsFixed(5)}',
       );
     }
   }
@@ -181,14 +215,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final showMap = _error == null;
+    final showMap = _error == null || kIsWeb;
+    final showLocationBanner =
+        (_locating || (kIsWeb && _locationBanner != null)) && showMap;
 
     return Scaffold(
       backgroundColor: FestMapColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            FestMapHeader(pinCount: _pins.length),
+            FestMapHeader(
+              pinCount: _pins.length,
+              countLabel: kIsWeb ? 'pins on map' : 'pins nearby',
+            ),
             Expanded(
               child: Stack(
                 children: [
@@ -207,15 +246,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       onRecenter: () => unawaited(_recenter()),
                       onLongPress: (pos) => unawaited(_openDropPinForm(at: pos)),
                     ),
-                  if (_error != null)
+                  if (_error != null && !kIsWeb)
                     _ErrorState(message: _error!, onRetry: _initLocation),
-                  if (_locating && showMap)
+                  if (showLocationBanner)
                     Positioned(
                       top: 12,
                       left: 16,
                       right: 16,
                       child: _LocationBanner(
                         message: _locationBanner ?? 'Finding your location…',
+                        loading: _locating,
+                        onRetry: _locating ? null : _initLocation,
                       ),
                     ),
                   if (!_showForm && showMap)
@@ -234,9 +275,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(color: FestMapColors.border),
                           ),
-                          child: const Text(
-                            'Tap + to drop a pin at your location',
-                            style: TextStyle(
+                          child: Text(
+                            kIsWeb && _userPosition == null
+                                ? 'Long-press map to drop a pin, or allow location for +'
+                                : 'Tap + to drop a pin at your location',
+                            style: const TextStyle(
                               color: FestMapColors.primary,
                               fontSize: 13,
                             ),
@@ -259,6 +302,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             '${_pendingPin!.latitude.toStringAsFixed(5)}, ${_pendingPin!.longitude.toStringAsFixed(5)}',
                         lat: _pendingPin!.latitude,
                         lng: _pendingPin!.longitude,
+                        locationService: _locationService,
+                        onPinMoved: (lat, lng) {
+                          final pin = LatLng(lat, lng);
+                          setState(() => _pendingPin = pin);
+                          unawaited(_animateTo(pin));
+                        },
                         onCancel: _closeForm,
                         onSubmit: _savePin,
                       ),
@@ -269,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: _error != null
+      floatingActionButton: (_error != null && !kIsWeb)
           ? null
           : FloatingActionButton.extended(
               onPressed: () => unawaited(_openDropPinForm()),
@@ -286,9 +335,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _LocationBanner extends StatelessWidget {
-  const _LocationBanner({required this.message});
+  const _LocationBanner({
+    required this.message,
+    this.loading = true,
+    this.onRetry,
+  });
 
   final String message;
+  final bool loading;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -298,15 +353,29 @@ class _LocationBanner extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: FestMapColors.primary,
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: FestMapColors.primary,
+                  ),
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(
+                  Icons.info_outline,
+                  color: FestMapColors.primary,
+                  size: 18,
+                ),
               ),
-            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -314,6 +383,19 @@ class _LocationBanner extends StatelessWidget {
                 style: const TextStyle(color: Colors.white, fontSize: 13),
               ),
             ),
+            if (onRetry != null) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(
+                  foregroundColor: FestMapColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
           ],
         ),
       ),
